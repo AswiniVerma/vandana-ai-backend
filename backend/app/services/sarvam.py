@@ -152,17 +152,19 @@ def text_to_speech(text: str, language_code: str = "en") -> list[bytes]:
     for i, c in enumerate(chunks):
         print(f"  Chunk {i+1}: {c[:80]}...")
 
-    wav_chunks = []
-    for i, chunk in enumerate(chunks):
-        print(f"  Processing chunk {i+1}/{len(chunks)}...")
-        wav_bytes = _tts_chunk(chunk, sarvam_lang, speaker)
-        if wav_bytes:
-            wav_chunks.append(wav_bytes)
-            print(f"  Chunk {i+1} done, {len(wav_bytes)} bytes")
-        else:
-            print(f"  Chunk {i+1} skipped (empty after cleaning)")
+    # Process all chunks in parallel — reduces total TTS time from N×2s to ~2s
+    def process(args):
+        idx, chunk = args
+        wav = _tts_chunk(chunk, sarvam_lang, speaker)
+        print(f"  Chunk {idx+1} done, {len(wav)} bytes")
+        return idx, wav
 
-    return wav_chunks
+    results = [None] * len(chunks)
+    with ThreadPoolExecutor(max_workers=len(chunks)) as executor:
+        for idx, wav in executor.map(process, enumerate(chunks)):
+            results[idx] = wav
+
+    return [w for w in results if w]
 
 
 def speech_to_text(audio_bytes: bytes, filename: str = "audio.wav", language_code: str = "en") -> str:
