@@ -1,12 +1,8 @@
 import base64
-import io
 import re
-import tempfile
-import os
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections.abc import Generator
-from pydub import AudioSegment
 from app.config import SARVAM_API_KEY
 
 SARVAM_TTS_URL = "https://api.sarvam.ai/text-to-speech"
@@ -28,18 +24,17 @@ LANGUAGE_MAP = {
 
 TTS_MODEL = "bulbul:v2"
 
-# bulbul:v2 female speakers
 TTS_SPEAKERS = {
-    "en": "anushka",
-    "hi": "anushka",
-    "te": "anushka",
-    "ta": "anushka",
-    "kn": "anushka",
-    "ml": "anushka",
-    "gu": "anushka",
-    "mr": "anushka",
-    "bn": "anushka",
-    "pa": "anushka",
+    "en": "abhilash",
+    "hi": "abhilash",
+    "te": "abhilash",
+    "ta": "abhilash",
+    "kn": "abhilash",
+    "ml": "abhilash",
+    "gu": "abhilash",
+    "mr": "abhilash",
+    "bn": "abhilash",
+    "pa": "abhilash",
 }
 
 
@@ -183,32 +178,30 @@ def text_to_speech(text: str, language_code: str = "en") -> list[bytes]:
     return list(text_to_speech_stream(text, language_code))
 
 
-def speech_to_text(audio_bytes: bytes, filename: str = "audio.wav", language_code: str = "en") -> str:
+_MIME_MAP = {
+    "wav": "audio/wav",
+    "mp3": "audio/mpeg",
+    "webm": "audio/webm",
+    "ogg": "audio/ogg",
+    "m4a": "audio/mp4",
+    "flac": "audio/flac",
+}
+
+
+def speech_to_text(audio_bytes: bytes, filename: str = "audio.webm", language_code: str = "en") -> str:
     """
     Convert speech to text using Sarvam AI.
+    Sends audio directly without conversion — Sarvam accepts WebM/WAV/MP3/OGG natively.
     Returns the transcript string.
     """
     sarvam_lang = LANGUAGE_MAP.get(language_code, "en-IN")
-
-    # Convert to WAV (16kHz mono) using a temp file — pydub needs seekable file
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "webm"
-    with tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False) as tmp_in:
-        tmp_in.write(audio_bytes)
-        tmp_in_path = tmp_in.name
-
-    try:
-        audio = AudioSegment.from_file(tmp_in_path, format=ext)
-        audio = audio.set_frame_rate(16000).set_channels(1)
-        wav_buffer = io.BytesIO()
-        audio.export(wav_buffer, format="wav")
-        wav_bytes = wav_buffer.getvalue()
-    finally:
-        os.unlink(tmp_in_path)
+    mime = _MIME_MAP.get(ext, "audio/webm")
 
     response = requests.post(
         SARVAM_STT_URL,
         headers={"api-subscription-key": SARVAM_API_KEY},
-        files={"file": ("audio.wav", wav_bytes, "audio/wav")},
+        files={"file": (filename, audio_bytes, mime)},
         data={
             "model": "saarika:v2.5",
             "language_code": sarvam_lang,
